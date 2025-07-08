@@ -2,13 +2,16 @@ export default {
     async fetch(request) {
         const url = new URL(request.url);
 
+        // Only intercept /geo-api requests
         if (!url.pathname.startsWith('/geo-api')) {
-            return fetch(request); // Skip if not our geo endpoint
+            return fetch(request);
         }
 
-        const asn = request.cf?.asn || 'unknown';
+        // Prefer CF ASN, fallback to x-forwarded-asn header if present
+        const cfAsn = request.cf?.asn;
+        const forwardedAsn = request.headers.get('x-forwarded-asn');
+        const asn = cfAsn || forwardedAsn || 'unknown';
 
-        // Forward the request to the real API
         const response = await fetch("https://admin.albanianpost.com/api", {
             method: request.method,
             headers: request.headers,

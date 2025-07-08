@@ -3,37 +3,28 @@ export default {
         const url = new URL(request.url);
         const pathname = url.pathname;
 
-        // Only intercept root path
-        if (pathname === "/") {
-            const asn = request.cf?.asn || 'unknown';
+        const asn = request.cf?.asn || 'unknown';
 
-            const response = await fetch(request);
-            const newHeaders = new Headers(response.headers);
-            newHeaders.set('x-asn', asn);
-            newHeaders.set('access-control-expose-headers', 'x-asn');
+        // Clone headers to inject into request
+        const reqHeaders = new Headers(request.headers);
+        reqHeaders.set('x-client-asn', asn); // 👈 this header will be readable in Nuxt SSR middleware
 
-            return new Response(response.body, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: newHeaders,
-            });
-        }
+        let response;
 
-        // Handle geo-api proxy logic
+        // Special case: geo-api proxy logic
         if (pathname.startsWith('/geo-api')) {
-            const cfAsn = request.cf?.asn;
-            const forwardedAsn = request.headers.get('x-forwarded-asn');
-            const asn = cfAsn || forwardedAsn || 'unknown';
+            const forwardedAsn = reqHeaders.get('x-forwarded-asn');
+            const effectiveAsn = forwardedAsn || asn;
 
-            const response = await fetch("https://admin.albanianpost.com/api", {
+            response = await fetch("https://admin.albanianpost.com/api", {
                 method: request.method,
-                headers: request.headers,
+                headers: reqHeaders,
                 body: request.body,
                 redirect: request.redirect,
             });
 
             const newHeaders = new Headers(response.headers);
-            newHeaders.set('x-asn', asn);
+            newHeaders.set('x-asn', effectiveAsn);
             newHeaders.set('access-control-expose-headers', 'x-asn');
 
             return new Response(response.body, {
@@ -43,7 +34,17 @@ export default {
             });
         }
 
-        // Default pass-through
-        return fetch(request);
+        // Default passthrough (includes `/`)
+        response = await fetch(new Request(request, { headers: reqHeaders }));
+
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('x-asn', asn);
+        newHeaders.set('access-control-expose-headers', 'x-asn');
+
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders,
+        });
     }
-}
+};

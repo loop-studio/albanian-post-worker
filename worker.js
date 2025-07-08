@@ -1,13 +1,18 @@
 export default {
     async fetch(request) {
-        const asn = request.cf && request.cf.asn ? request.cf.asn : 'unknown';
-        const headers = new Headers(request.headers);
-        headers.set('X-ASN', asn);
-        return fetch(request.url, {
-            method: request.method,
-            headers,
-            body: request.body,
-            redirect: request.redirect
+        const asn = request.cf?.asn || 'unknown';
+
+        // Fetch the original request
+        const response = await fetch(request);
+
+        // Clone response and inject header
+        const newHeaders = new Headers(response.headers);
+        newHeaders.set('X-ASN', asn);
+
+        return new Response(response.body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers: newHeaders
         });
     }
 }

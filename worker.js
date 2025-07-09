@@ -34,16 +34,23 @@ export default {
             });
         }
 
-        // Default passthrough (includes `/`)
-        response = await fetch(new Request(request, { headers: reqHeaders }));
+        const modifiedRequest = new Request(request.url, {
+            method: request.method,
+            headers: reqHeaders,
+            body: request.body,
+            redirect: request.redirect,
+            // cf: request.cf // optional – not necessary
+        });
 
-        const newHeaders = new Headers(response.headers);
+        const rootResponse = await fetch(modifiedRequest);
+
+        const newHeaders = new Headers(rootResponse.headers);
         newHeaders.set('x-asn', asn);
         newHeaders.set('access-control-expose-headers', 'x-asn');
 
-        return new Response(response.body, {
-            status: response.status,
-            statusText: response.statusText,
+        return new Response(rootResponse.body, {
+            status: rootResponse.status,
+            statusText: rootResponse.statusText,
             headers: newHeaders,
         });
     }
